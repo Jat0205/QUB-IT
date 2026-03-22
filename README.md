@@ -1,5 +1,5 @@
 # QUB-IT
-QUB-IT: A QUANTUM BOP IT game <br>
+QUB-IT: A Quantum Bop It Game <br>
 Contributors:<br>
 Jessica Huang, EE<br>
 Thomas Eble, EPhys<br>
