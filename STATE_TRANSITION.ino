@@ -1,6 +1,7 @@
 // global variable definition
 int r = 0; //number of rounds successfully passed
 const int DIFFICULTY = 0; //difficulty integer which, when modified, changes the rate at which the game gets faster (when it is zero, every round is the same length)
+int qubitState = 0; //current state of the qubit
 
 //STATE TRANSITION LOOKUP TABLE
 // transition[operation][current_state] = new_state
@@ -30,7 +31,7 @@ int z = 0;
 int lastStateX = LOW;
 int lastStateY = LOW;
 int lastStateZ = LOW;
-int qubitState = 0;
+
 int coin = 0;
 
 
@@ -39,7 +40,9 @@ void setup() {
   pinMode(4, INPUT); //rot_encY
   pinMode(7, INPUT); //rot_encZ
   pinMode(8, OUTPUT);//output LED to verify rot_enc pulsing
-  pinMode(9, INPUT); //
+  pinMode(A2, INPUT); //measure x button
+  pinMode(A1, INPUT); //measure y button
+  pinMode(A0, INPUT); //measure z button
   lastStateX = digitalRead(2);
   lastStateY = digitalRead(4);
   lastStateZ = digitalRead(7);
@@ -47,27 +50,26 @@ void setup() {
 }
 
 void loop() {
-  //rot_encX loop
+  //rot_encX, Y, and Z, input detection
   int currentStateX = digitalRead(2);
   if (currentStateX == HIGH && lastStateX == LOW) {
     x++;
   }
   lastStateX = currentStateX;
 
-  //rot_encY loop
   int currentStateY = digitalRead(4);
   if (currentStateY == HIGH && lastStateY == LOW) {
     y++;
   }
   lastStateY = currentStateY;
 
-  ////rot_encZ loop
   int currentStateZ = digitalRead(7);
   if (currentStateZ == HIGH && lastStateZ == LOW) {
     z++;
   }
   lastStateZ = currentStateZ;
 
+  //state transitions for x, y, and z inputs
   if(x == 5){
     qubitState = state_transition[qubitState][1];
     digitalWrite(8, HIGH);
@@ -88,7 +90,9 @@ void loop() {
     delay(1000);
     digitalWrite(8, LOW);
     z = 0;
-  }       
+  }   
+  
+  //probability functions for measurement collapse
   if(qubitState == -1){
     coin = TCNT0 & 1;
     if(coin == 0){
@@ -117,7 +121,14 @@ void loop() {
     }
   }
   
-
+  //measure it input register
+  int measureX = digitalRead(A2);
+  int measureY = digitalRead(A1);
+  int measureZ = digitalRead(A0);
+  if(measureX == HIGH || measureY == HIGH || measureZ == HIGH){
+    digitalWrite(8, HIGH);
+  }
+  else{
+    digitalWrite (8, LOW);
+  }
 }
-
-
