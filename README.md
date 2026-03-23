@@ -12,15 +12,15 @@ C++<br><br>
 DO 0:AUDIO <br>
 DO 1: AUDIO <br>
 DO 2: X ROT ENC <br>
-DO 3: LED Z+ <br>
+DO 3: LED |0> <br>
 DO 4: Y ROT ENC <br>
-DO 5: LED X+ <br>
-DO 6: LED X- <br>
+DO 5: LED |+> <br>
+DO 6: LED |-> <br>
 DO 7: Z ROT ENC <br>
 DO 8:  <br>
-DO 9: LED Z- <br>
-DO 10: LED Y+ <br>
-DO 11: LED Y- <br>
+DO 9: LED |1> <br>
+DO 10: LED |i> <br>
+DO 11: LED |-i> <br>
 DO 12: <br>
 DO 13: <br>
 A0: BUTTON: Measure X <br>
