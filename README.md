@@ -23,9 +23,9 @@ DO 10: LED |i> <br>
 DO 11: LED |-i> <br>
 DO 12: <br>
 DO 13: <br>
-A0: BUTTON: Measure X <br>
+A0: BUTTON: Measure Z <br>
 A1: BUTTON: Measure Y <br>
-A2: BUTTON: Measure Z <br>
+A2: BUTTON: Measure X <br>
 A3:PHOTODIODE <br>
 A4: LCD <br>
 A5: LCD <br><br>
