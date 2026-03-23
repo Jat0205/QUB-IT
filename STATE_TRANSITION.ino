@@ -43,6 +43,12 @@ void setup() {
   pinMode(A2, INPUT); //measure x button
   pinMode(A1, INPUT); //measure y button
   pinMode(A0, INPUT); //measure z button
+  pinMode(3, OUTPUT); //|0> output
+  pinMode(9, OUTPUT); //|1> output
+  pinMode(5, OUTPUT); //|+> output
+  pinMode(6, OUTPUT); //|-> output
+  pinMode(10, OUTPUT); //|i> output
+  pinMode(11, OUTPUT); //|-i> output
   lastStateX = digitalRead(2);
   lastStateY = digitalRead(4);
   lastStateZ = digitalRead(7);
