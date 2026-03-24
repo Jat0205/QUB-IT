@@ -17,7 +17,7 @@ const int state_transition[NUM_OPS][NUM_STATES] = {
   {2, 3, 0, 1, 5, 4},  // H: swap 0↔2, swap 1↔3, swap 4↔5
   {-1, -1, 2, 3, -1, -1},  // XMEAS: every -1 needs sep. function to collapse to 2 or 3
   {-2, -2, -2, -2, 4, 5},  // YMEAS: every -2 needs sep. function to collapse to 4 or 5
-  {1, 0, -3, -3, -3, -3},  // ZMEAS: every -3 needs sep. function to collapse to 1 or 0
+  {0, 1, -3, -3, -3, -3},  // ZMEAS: every -3 needs sep. function to collapse to 1 or 0
 };
 
 
