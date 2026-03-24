@@ -60,27 +60,11 @@ void loop() {
   detect_rotation();
 
   //state transitions for x, y, and z inputs
-  if(x == 5){
-    qubitState = state_transition[qubitState][1];
-    digitalWrite(8, HIGH);
-    delay(1000);
-    digitalWrite(8, LOW);
-    x = 0;
-  }       
-  if(y == 5){
-    qubitState = state_transition[qubitState][2];
-    digitalWrite(8, HIGH);
-    delay(1000);
-    digitalWrite(8, LOW);
-    y= 0;
-  }       
-  if(z == 5){
-    qubitState = state_transition[qubitState][3];
-    digitalWrite(8, HIGH);
-    delay(1000);
-    digitalWrite(8, LOW);
-    z = 0;
-  }   
+  detect_Xgate();
+  detect_Ygate();
+  detect_Zgate();
+
+  diode_output(qubitState);
   
   //measure it input register
   int measureX = digitalRead(A2);
@@ -114,16 +98,75 @@ void detect_rotation(){
   lastStateZ = currentStateZ;
 }
 
+//function detects x gate and adjusts state accordingly
 bool detect_Xgate(){
-
+ if(x == 5){
+    qubitState = state_transition[1][qubitState];
+    digitalWrite(8, HIGH);
+    delay(1000);
+    digitalWrite(8, LOW);
+    x = 0;
+  } 
 }
 
-bool detect_Ygate(){
-
+//function detects y gate and adjusts state accordingly
+void detect_Ygate(){
+  if(y == 5){
+    qubitState = state_transition[2][qubitState];
+    digitalWrite(8, HIGH);
+    delay(1000);
+    digitalWrite(8, LOW);
+    y= 0;
+  }
 }
 
-bool detect_Zgate(){
+//function detects z gate and adjusts state accordingly
+void detect_Zgate(){
+ if(z == 5){
+    qubitState = state_transition[3][qubitState];
+    digitalWrite(8, HIGH);
+    delay(1000);
+    digitalWrite(8, LOW);
+    z = 0;
+  }
+}
 
+void diode_output(int qubitState){
+  digitalWrite(3, LOW);
+  digitalWrite(9, LOW);
+  digitalWrite(5, LOW);
+  digitalWrite(6, LOW);
+  digitalWrite(10, LOW);
+  digitalWrite(11, LOW);
+  switch (qubitState){
+    case 0:
+      digitalWrite(3, HIGH);
+      break;
+    case 1:
+      digitalWrite(9, HIGH);
+      break;
+    case 2:
+      digitalWrite(5, HIGH);
+      break;
+    case 3:
+      digitalWrite(6, HIGH);
+      break;
+    case 4:
+      digitalWrite(10, HIGH);
+      break;
+    case 5:
+      digitalWrite(11, HIGH);
+      break;
+    case -1:
+
+      break;
+    case -2:
+
+      break;
+    case -3:
+
+      break;
+  }
 }
 
 //function that takes the current state and returns an int corresponding to new state.
