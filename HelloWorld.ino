@@ -12,4 +12,5 @@ void loop() {
   };
             
 }
+//comment added by THOMAS for the Intro to GitHub assignment
 //Jannet Trabelsi edit
