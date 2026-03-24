@@ -133,6 +133,7 @@ int collapse_it(int qubitState){
       return 0;
     }
   }
+  return qubitState;
 }
 
 void detect_rotation(){
