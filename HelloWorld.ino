@@ -1,5 +1,5 @@
 void setup() {
-  pinMode(5, INPUT);
+  pinMode(5, INPUT); //Jessica was here! 
   pinMode(6, INPUT);
   pinMode(7, INPUT);
   pinMode(8, OUTPUT);
