@@ -59,22 +59,79 @@ void loop() {
   //rot_encX, Y, and Z, input detection
   detect_rotation();
 
-  //state transitions for x, y, and z inputs
+  //state transitions for x, y, and z gate inputs
   detect_Xgate();
   detect_Ygate();
   detect_Zgate();
 
+  //state transitions for x, y, and z measure inputs
+  detect_Xmeasure();
+  detect_Ymeasure();
+  detect_Zmeasure();
+
   diode_output(qubitState);
-  
-  //measure it input register
+}
+
+void detect_Xmeasure(){
   int measureX = digitalRead(A2);
-  int measureY = digitalRead(A1);
-  int measureZ = digitalRead(A0);
-  if(measureX == HIGH || measureY == HIGH || measureZ == HIGH){
+  if(measureX == HIGH){
+    qubitState = state_transition[5][qubitState];
+    qubitState = collapse_it(qubitState);
     digitalWrite(8, HIGH);
+    delay(1000);
+    digitalWrite(8, LOW);
   }
-  else{
-    digitalWrite (8, LOW);
+}
+
+void detect_Ymeasure(){
+  int measureY = digitalRead(A1);
+  if(measureY == HIGH){
+    qubitState = state_transition[6][qubitState];
+    qubitState = collapse_it(qubitState);
+    digitalWrite(8, HIGH);
+    delay(1000);
+    digitalWrite(8, LOW);
+  }
+}
+
+void detect_Zmeasure(){
+  int measureZ = digitalRead(A0);
+  if(measureZ == HIGH){
+    qubitState = state_transition[7][qubitState];
+    qubitState = collapse_it(qubitState);
+    digitalWrite(8, HIGH);
+    delay(1000);
+    digitalWrite(8, LOW);
+  }
+}
+
+//function that takes the current state and returns an int corresponding to new state.
+//should be called in main qubitState = collapse_it(qubitState)
+int collapse_it(int qubitState){
+  coin = TCNT0 & 1;
+  if(qubitState == -1){
+    if(coin == 0){
+      return 2;
+    }
+    else{
+      return 3;
+    }
+  }
+  if(qubitState == -2){
+    if(coin == 0){
+      return 4;
+    }
+    else{
+      return 5;
+    }
+  }
+  if(qubitState == -3){
+    if(coin == 0){
+      return 1;
+    }
+    else{
+      return 0;
+    }
   }
 }
 
@@ -99,7 +156,7 @@ void detect_rotation(){
 }
 
 //function detects x gate and adjusts state accordingly
-bool detect_Xgate(){
+void detect_Xgate(){
  if(x == 5){
     qubitState = state_transition[1][qubitState];
     digitalWrite(8, HIGH);
@@ -157,45 +214,6 @@ void diode_output(int qubitState){
     case 5:
       digitalWrite(11, HIGH);
       break;
-    case -1:
-
-      break;
-    case -2:
-
-      break;
-    case -3:
-
-      break;
-  }
-}
-
-//function that takes the current state and returns an int corresponding to new state.
-//should be called in main qubitState = collapse_it(qubitState)
-int collapse_it(int qubitState){
-  coin = TCNT0 & 1;
-  if(qubitState == -1){
-    if(coin == 0){
-      return 2;
-    }
-    else{
-      return 3;
-    }
-  }
-  if(qubitState == -2){
-    if(coin == 0){
-      return 4;
-    }
-    else{
-      return 5;
-    }
-  }
-  if(qubitState == -3){
-    if(coin == 0){
-      return 1;
-    }
-    else{
-      return 0;
-    }
   }
 }
 
