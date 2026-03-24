@@ -57,23 +57,7 @@ void setup() {
 
 void loop() {
   //rot_encX, Y, and Z, input detection
-  int currentStateX = digitalRead(2);
-  if (currentStateX == HIGH && lastStateX == LOW) {
-    x++;
-  }
-  lastStateX = currentStateX;
-
-  int currentStateY = digitalRead(4);
-  if (currentStateY == HIGH && lastStateY == LOW) {
-    y++;
-  }
-  lastStateY = currentStateY;
-
-  int currentStateZ = digitalRead(7);
-  if (currentStateZ == HIGH && lastStateZ == LOW) {
-    z++;
-  }
-  lastStateZ = currentStateZ;
+  detect_rotation();
 
   //state transitions for x, y, and z inputs
   if(x == 5){
@@ -98,35 +82,6 @@ void loop() {
     z = 0;
   }   
   
-  //probability functions for measurement collapse
-  if(qubitState == -1){
-    coin = TCNT0 & 1;
-    if(coin == 0){
-      qubitState = 2;
-    }
-    else{
-      qubitState = 3;
-    }
-  }
-  if(qubitState == -2){
-    coin = TCNT0 & 1;
-    if(coin == 0){
-      qubitState = 4;
-    }
-    else{
-      qubitState = 5;
-    }
-  }
-  if(qubitState == -3){
-    coin = TCNT0 & 1;
-    if(coin == 0){
-      qubitState = 1;
-    }
-    else{
-      qubitState = 0;
-    }
-  }
-  
   //measure it input register
   int measureX = digitalRead(A2);
   int measureY = digitalRead(A1);
@@ -138,3 +93,66 @@ void loop() {
     digitalWrite (8, LOW);
   }
 }
+
+void detect_rotation(){
+  int currentStateX = digitalRead(2);
+  int currentStateY = digitalRead(4);
+  int currentStateZ = digitalRead(7);
+  if (currentStateX == HIGH && lastStateX == LOW) {
+    x++;
+  }
+  lastStateX = currentStateX;
+  
+  if (currentStateY == HIGH && lastStateY == LOW) {
+    y++;
+  }
+  lastStateY = currentStateY;
+  
+  if (currentStateZ == HIGH && lastStateZ == LOW) {
+    z++;
+  }
+  lastStateZ = currentStateZ;
+}
+
+bool detect_Xgate(){
+
+}
+
+bool detect_Ygate(){
+
+}
+
+bool detect_Zgate(){
+
+}
+
+//function that takes the current state and returns an int corresponding to new state.
+//should be called in main qubitState = collapse_it(qubitState)
+int collapse_it(int qubitState){
+  coin = TCNT0 & 1;
+  if(qubitState == -1){
+    if(coin == 0){
+      return 2;
+    }
+    else{
+      return 3;
+    }
+  }
+  if(qubitState == -2){
+    if(coin == 0){
+      return 4;
+    }
+    else{
+      return 5;
+    }
+  }
+  if(qubitState == -3){
+    if(coin == 0){
+      return 1;
+    }
+    else{
+      return 0;
+    }
+  }
+}
+
