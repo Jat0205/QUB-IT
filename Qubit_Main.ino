@@ -318,33 +318,39 @@ void detect_rotation(){
 // ================= DETECT GATE =================
 bool DETECT_GATE(int ENCODER_VAL) {
   if (ENCODER_VAL == ROTENCX){
-    int measureX = digitalRead(A2);
-  if(measureX == HIGH){
-    qubitState = state_transition[5][qubitState];
-    qubitState = collapse_it(qubitState);
+    if(x == 5){
+    qubitState = state_transition[1][qubitState];
     digitalWrite(8, HIGH);
     delay(1000);
     digitalWrite(8, LOW);
+    x = 0;
+  } 
+  else{
+    return false;
   }
   }
   else if (ENCODER_VAL == ROTENCY){
-    int measureY = digitalRead(A1);
-  if(measureY == HIGH){
-    qubitState = state_transition[6][qubitState];
-    qubitState = collapse_it(qubitState);
+    if(y == 5){
+    qubitState = state_transition[2][qubitState];
     digitalWrite(8, HIGH);
     delay(1000);
     digitalWrite(8, LOW);
+    y= 0;
+  }
+  else{
+    return false;
   }
   }
   else{
-int measureZ = digitalRead(A0);
-  if(measureZ == HIGH){
-    qubitState = state_transition[7][qubitState];
-    qubitState = collapse_it(qubitState);
+if(z == 5){
+    qubitState = state_transition[3][qubitState];
     digitalWrite(8, HIGH);
     delay(1000);
     digitalWrite(8, LOW);
+    z = 0;
+  }
+  else{
+    return false;
   }
   }
 }
