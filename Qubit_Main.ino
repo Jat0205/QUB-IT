@@ -1,7 +1,13 @@
+// ================================================================
+//  QUB-IT  —  A Quantum Bop-It Game
+// ================================================================
+
 #include "Arduino.h"
 #include <LiquidCrystal_I2C.h>
 #include "DFRobotDFPlayerMini.h"
-#if (defined(ARDUINO_AVR_UNO) || defined(ESP8266))   // Using a soft serial port
+
+// ================= SOFT SERIAL FOR DFPLAYER =================
+#if (defined(ARDUINO_AVR_UNO) || defined(ESP8266))
 #include <SoftwareSerial.h>
 SoftwareSerial softSerial(/*rx =*/4, /*tx =*/5);
 #define FPSerial softSerial
@@ -12,106 +18,318 @@ SoftwareSerial softSerial(/*rx =*/4, /*tx =*/5);
 DFRobotDFPlayerMini myDFPlayer;
 
 // ================= LCD =================
-LiquidCrystal_I2C lcd(0x27, 20, 4); // I2C address 0x27, 20 column and 4 rows
+LiquidCrystal_I2C lcd(0x27, 20, 4);
 
-// ============= GAME VARIABLES =============
-bool gameRunning = true;
-int score = 0;             //tracks player score
-int currentCommand = 0;    //what player must do (X, Y, etc)
-bool initialized = false;  //whether game has started
-int qubitState = 0; //current state of the qubit
+// ================= PIN DEFINITIONS =================
+const int ROTENCX    = 2;
+const int ROTENCY    = 0;
+const int ROTENCZ    = 7;
+const int DEBUGLED   = 8;
+const int PHOTODIODE = A3;
+const int MEASUREX   = A2;
+const int MEASUREY   = A1;
+const int MEASUREZ   = A0;
 
-
-enum GamePhase { WAITING, INITIALIZE, GATE, MEASURE };
-GamePhase currentPhase = INITIALIZE;
-int expectedGate = 0;
-bool waitingForNext = false;
-bool processingCommand = false;  // Prevent double execution
-
-unsigned long roundStartTime = 0;
-unsigned long timeLimit = 3000;
-
-int previousState = 0;  //stores old qubit state
-
-// ============= QUBIT STATE ================
-int lastStateX = LOW;  //used for edge detection for X encoder
-int lastStateY = LOW;  //used for edge detection for Y encoder
-int lastStateZ = LOW;  //used for edge detection for Z encoder
-String COM = "";
-int x, y, z = 0;
-const int NUM_OPS = 8;
-const int NUM_STATES = 6;
-const int state_transition[NUM_OPS][NUM_STATES] = {
- {0, 0, 0, 0, 0, 0},  // INIT: always |0>
- {1, 0, 2, 3, 5, 4},  // X: swap 0↔1, swap 4↔5, keep 2,3
- {1, 0, 3, 2, 4, 5},  // Y: swap 0↔1, swap 2↔3, keep 4,5
- {0, 1, 3, 2, 5, 4},  // Z: keep 0,1, swap 2↔3, swap 4↔5
- {2, 3, 0, 1, 5, 4},  // H: swap 0↔2, swap 1↔3, swap 4↔5
- {-1, -1, 2, 3, -1, -1},  // XMEAS: every -1 needs sep. function to collapse to 2 or 3
- {-2, -2, -2, -2, 4, 5},  // YMEAS: every -2 needs sep. function to collapse to 4 or 5
- {0, 1, -3, -3, -3, -3},  // ZMEAS: every -3 needs sep. function to collapse to 1 or 0
+const int LED_PINS[6] = {
+  3,   // index 0 → |0>   (PWM)
+  9,   // index 1 → |1>   (PWM)
+  1,   // index 2 → |+>   (digital only)
+  6,   // index 3 → |->   (PWM)
+  10,  // index 4 → |i>   (PWM)
+  11   // index 5 → |-i>  (PWM)
 };
 
+// ================= QUBIT PHYSICS ENGINE =================
+int qubitState = 0;
 
-bool LEDS[NUM_STATES] = {false, false, false, false, false, false};
-bool INIT_LED = false; //LED on the controller that flashes whn turned on and held on when qubit is initialized
-int coin = 0;
+const int NUM_OPS    = 8;
+const int NUM_STATES = 6;
+const int state_transition[NUM_OPS][NUM_STATES] = {
+  {0, 0, 0, 0, 0, 0},
+  {1, 0, 2, 3, 5, 4},
+  {1, 0, 3, 2, 4, 5},
+  {0, 1, 3, 2, 5, 4},
+  {2, 3, 0, 1, 5, 4},        // H (unused)
+  {-1, -1, 2, 3, -1, -1},
+  {-2, -2, -2, -2, 4, 5},
+  {0, 1, -3, -3, -3, -3},
+};
 
+int collapse_it(int state) {
+  int coin = TCNT0 & 1;
+  if (state == -1) return (coin == 0) ? 2 : 3;
+  if (state == -2) return (coin == 0) ? 4 : 5;
+  if (state == -3) return (coin == 0) ? 0 : 1;
+  return state;
+}
 
-// ================= PINS ===================
-const int ROTENCX = 2;
-const int ROTENCY = 0;
-const int ROTENCZ = 7;
-const int DEBUGLED = 8;
-const int PHOTODIODE = A3;
-const int MEASUREX = A2;
-const int MEASUREY = A1;
-const int MEASUREZ = A0;
-const int LEDpZ = 3;
-const int LEDmZ = 9;
-const int LEDpX = 1;
-const int LEDmX = 6;
-const int LEDpY = 10;
-const int LEDmY = 11;
-int CURRENTSTATE = LEDpZ;
-int dim_value = 255;
-bool LED_ON = false;
+// ================= ENCODER GLOBALS =================
+volatile int encX = 0, encY = 0, encZ = 0;
+int lastStateX = LOW, lastStateY = LOW, lastStateZ = LOW;
 
-// ================== TIME ==================
-float time_unit = 1000; // in ms
-float duration = 5 + (100 * time_unit);
-int wait_duration = 0;
+// ================= GAME STATE MACHINE =================
+enum GameState {
+  GS_IDLE,
+  GS_COMMAND,
+  GS_WAIT_INPUT,
+  GS_SUCCESS,
+  GS_GAME_OVER
+};
+GameState gameState = GS_IDLE;
 
-// ================= SETUP =================
+enum Command {
+  CMD_INIT,
+  CMD_X,
+  CMD_Y,
+  CMD_Z,
+  CMD_MEASURE
+};
+Command currentCmd = CMD_INIT;
+
+// Forward declarations
+void playCommand(Command cmd);
+bool checkForWrongInput(Command cmd);
+bool checkCorrectInput(Command cmd);
+Command pickRandomCommand();
+const char* commandText(Command cmd);
+
+int  score           = 0;
+int  dim_value       = 255;
+bool ledOn           = false;
+int  currentLedPin   = -1;
+
+unsigned long roundStart    = 0;
+unsigned long roundDuration = 10000;
+const unsigned long MIN_ROUND_TIME = 2500;
+
+const int ENCODER_THRESHOLD = 5;
+
+// ================= DFPlayer TRACK MAP =================
+const int TRACK_INIT    = 7;
+const int TRACK_X       = 10;
+const int TRACK_Y       = 8;
+const int TRACK_Z       = 4;
+const int TRACK_MEASURE = 2;
+const int TRACK_STARTUP = 1;
+
+// ================= DEBUG LED =================
+void flashDebugLed() {
+  digitalWrite(DEBUGLED, HIGH);
+  delay(80);
+  digitalWrite(DEBUGLED, LOW);
+}
+
+// ================= LED HELPERS =================
+void ledWrite(int pin, int value) {
+  if (pin == 1) {
+    digitalWrite(pin, value > 127 ? HIGH : LOW);
+  } else {
+    analogWrite(pin, value);
+  }
+}
+
+void allLedsOff() {
+  for (int i = 0; i < 6; i++) {
+    ledWrite(LED_PINS[i], 0);
+  }
+  ledOn = false;
+  currentLedPin = -1;
+}
+
+void showQubitLed() {
+  allLedsOff();
+  currentLedPin = LED_PINS[qubitState];
+  dim_value = 255;
+  ledWrite(currentLedPin, 255);
+  ledOn = true;
+}
+
+void dimLed() {
+  if (!ledOn || currentLedPin < 0) return;
+  unsigned long elapsed = millis() - roundStart;
+  if (elapsed >= roundDuration) {
+    dim_value = 0;
+  } else {
+    dim_value = map(elapsed, 0, roundDuration, 255, 0);
+  }
+  ledWrite(currentLedPin, dim_value);
+  if (dim_value == 0) ledOn = false;
+}
+
+// ================= ENCODER POLLING =================
+void pollEncoders() {
+  int cx = digitalRead(ROTENCX);
+  int cy = digitalRead(ROTENCY);
+  int cz = digitalRead(ROTENCZ);
+
+  if (cx == HIGH && lastStateX == LOW) encX++;
+  lastStateX = cx;
+
+  if (cy == HIGH && lastStateY == LOW) encY++;
+  lastStateY = cy;
+
+  if (cz == HIGH && lastStateZ == LOW) encZ++;
+  lastStateZ = cz;
+}
+
+void resetEncoders() {
+  encX = 0; encY = 0; encZ = 0;
+}
+
+// ================= SPEAKER =================
+void playCommand(Command cmd) {
+  switch (cmd) {
+    case CMD_INIT:    myDFPlayer.play(TRACK_INIT);    break;
+    case CMD_X:       myDFPlayer.play(TRACK_X);       break;
+    case CMD_Y:       myDFPlayer.play(TRACK_Y);       break;
+    case CMD_Z:       myDFPlayer.play(TRACK_Z);       break;
+    case CMD_MEASURE: myDFPlayer.play(TRACK_MEASURE); break;
+  }
+}
+
+// ================= LCD HELPERS =================
+void lcdShowCommand(const char* text) {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(text);
+}
+
+// ================= INPUT DETECTION =================
+bool checkForWrongInput(Command cmd) {
+  int mx = digitalRead(MEASUREX);
+  int my = digitalRead(MEASUREY);
+  int mz = digitalRead(MEASUREZ);
+  int photo = analogRead(PHOTODIODE);
+  bool laserHit = (photo >= 512);
+
+  switch (cmd) {
+    case CMD_INIT:
+      if (mx == HIGH || my == HIGH || mz == HIGH) return true;
+      if (encX > 2 || encY > 2 || encZ > 2) return true;
+      break;
+    case CMD_X:
+      if (mx == HIGH || my == HIGH || mz == HIGH) return true;
+      if (laserHit) return true;
+      if (encY > ENCODER_THRESHOLD || encZ > ENCODER_THRESHOLD) return true;
+      break;
+    case CMD_Y:
+      if (mx == HIGH || my == HIGH || mz == HIGH) return true;
+      if (laserHit) return true;
+      if (encX > ENCODER_THRESHOLD || encZ > ENCODER_THRESHOLD) return true;
+      break;
+    case CMD_Z:
+      if (mx == HIGH || my == HIGH || mz == HIGH) return true;
+      if (laserHit) return true;
+      if (encX > ENCODER_THRESHOLD || encY > ENCODER_THRESHOLD) return true;
+      break;
+    case CMD_MEASURE:
+      if (laserHit) return true;
+      if (encX > 2 || encY > 2 || encZ > 2) return true;
+      break;
+  }
+  return false;
+}
+
+bool checkCorrectInput(Command cmd) {
+  switch (cmd) {
+    case CMD_INIT: {
+      int photo = analogRead(PHOTODIODE);
+      if (photo >= 512) {
+        qubitState = state_transition[0][qubitState];
+        return true;
+      }
+      return false;
+    }
+    case CMD_X:
+      if (encX >= ENCODER_THRESHOLD) {
+        qubitState = state_transition[1][qubitState];
+        return true;
+      }
+      return false;
+    case CMD_Y:
+      if (encY >= ENCODER_THRESHOLD) {
+        qubitState = state_transition[2][qubitState];
+        return true;
+      }
+      return false;
+    case CMD_Z:
+      if (encZ >= ENCODER_THRESHOLD) {
+        qubitState = state_transition[3][qubitState];
+        return true;
+      }
+      return false;
+    case CMD_MEASURE: {
+      int mx = digitalRead(MEASUREX);
+      int my = digitalRead(MEASUREY);
+      int mz = digitalRead(MEASUREZ);
+      if (mx == HIGH) {
+        qubitState = state_transition[5][qubitState];
+        qubitState = collapse_it(qubitState);
+        return true;
+      }
+      if (my == HIGH) {
+        qubitState = state_transition[6][qubitState];
+        qubitState = collapse_it(qubitState);
+        return true;
+      }
+      if (mz == HIGH) {
+        qubitState = state_transition[7][qubitState];
+        qubitState = collapse_it(qubitState);
+        return true;
+      }
+      return false;
+    }
+  }
+  return false;
+}
+
+// ================= COMMAND GENERATION =================
+Command pickRandomCommand() {
+  int r = random(0, 5);
+  switch (r) {
+    case 0:  return CMD_INIT;
+    case 1:  return CMD_X;
+    case 2:  return CMD_Y;
+    case 3:  return CMD_Z;
+    default: return CMD_MEASURE;
+  }
+}
+
+const char* commandText(Command cmd) {
+  switch (cmd) {
+    case CMD_INIT:    return "INITIALIZE IT!";
+    case CMD_X:       return "X IT!";
+    case CMD_Y:       return "Y IT!";
+    case CMD_Z:       return "Z IT!";
+    case CMD_MEASURE: return "MEASURE IT!";
+  }
+  return "";
+}
+
+// ================================================================
+//  SETUP
+// ================================================================
 void setup() {
-  // LCD
   lcd.init();
   lcd.backlight();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("QUB-IT");
+  lcd.setCursor(0, 1);
+  lcd.print("Point laser to start");
 
-  // DFPlayer (D0/D1)
   FPSerial.begin(9600);
-  #if (defined ESP32)
-  FPSerial.begin(9600, SERIAL_8N1, /*rx =*/D3, /*tx =*/D2);
-#else
-  FPSerial.begin(9600);
-#endif
-
-  //Serial.begin(115200);
-  
-  if (!myDFPlayer.begin(FPSerial, /*isACK = */true, /*doReset = */true)) {  //Use serial to communicate with mp3.
-    
-    while(true);
-  }  
-  myDFPlayer.setTimeOut(500); //Set serial communictaion time out 500ms
-  
-  //----Set volume----
-  myDFPlayer.volume(30);  //Set volume value (0~30).
-  
-  //----Set different EQ----
+  if (!myDFPlayer.begin(FPSerial, true, true)) {
+    lcd.clear();
+    lcd.print("DFPlayer FAIL");
+    while (true);
+  }
+  myDFPlayer.setTimeOut(500);
+  myDFPlayer.volume(30);
   myDFPlayer.EQ(DFPLAYER_EQ_NORMAL);
   myDFPlayer.outputDevice(DFPLAYER_DEVICE_SD);
+  myDFPlayer.play(TRACK_STARTUP);
 
-  // Setting Pins
   pinMode(ROTENCX, INPUT);
   pinMode(ROTENCY, INPUT);
   pinMode(ROTENCZ, INPUT);
@@ -119,500 +337,138 @@ void setup() {
   pinMode(MEASUREX, INPUT);
   pinMode(MEASUREY, INPUT);
   pinMode(MEASUREZ, INPUT);
-  pinMode(LEDpZ, OUTPUT);
-  pinMode(LEDmZ, OUTPUT);
-  pinMode(LEDpX, OUTPUT);
-  pinMode(LEDmX, OUTPUT);
-  pinMode(LEDpY, OUTPUT);
-  pinMode(LEDmY, OUTPUT);
-  analogWrite(LEDpZ, 0);
-  analogWrite(LEDmZ, 0);
-  digitalWrite(LEDpX, LOW);
-  analogWrite(LEDmX, 0);
-  analogWrite(LEDpY, 0);
-  analogWrite(LEDmY, 0);
+  for (int i = 0; i < 6; i++) {
+    pinMode(LED_PINS[i], OUTPUT);
+    ledWrite(LED_PINS[i], 0);
+  }
 
   lastStateX = digitalRead(ROTENCX);
   lastStateY = digitalRead(ROTENCY);
   lastStateZ = digitalRead(ROTENCZ);
   randomSeed(analogRead(A5));
+
+  gameState = GS_IDLE;
+  qubitState = 0;
+  score = 0;
 }
 
-// ================= INITIALIZE IT =================
-void INITIALIZE_IT() {
-  COM = "INITIALIZE IT!";
-  lcd.clear();
-  lcd.print(COM);
-  SPEAKER(COM);
-  delay(1000);
-  wait_duration = 0;
-  
-  if (!initialized) {
-    DETECT_PHOTODIODE();
-  }
-}
-
-// ================= MEASURE IT =================
-void MEASURE_IT() {
-  COM = "MEASURE IT!";
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print(COM);
-  SPEAKER(COM);
-  wait_duration = 0;
-  
-  bool result;
-  int button_detected = 0;
-  result = DETECT_MEASURE(button_detected);
-  if (result == true){
-
-  if(button_detected == MEASUREX){
-    qubitState = state_transition[5][qubitState];
-    qubitState = collapse_it(qubitState);
-    digitalWrite(8, HIGH);
-    delay(1000);
-    digitalWrite(8, LOW);
-  }
-  else if (button_detected == MEASUREY){
-    int measureY = digitalRead(A1);
-  if(measureY == HIGH){
-    qubitState = state_transition[6][qubitState];
-    qubitState = collapse_it(qubitState);
-    digitalWrite(8, HIGH);
-    delay(1000);
-    digitalWrite(8, LOW);
-  }
-  }
-  else if (button_detected == MEASUREZ){
-    int measureZ = digitalRead(A0);
-  if(measureZ == HIGH){
-    qubitState = state_transition[7][qubitState];
-    qubitState = collapse_it(qubitState);
-    digitalWrite(8, HIGH);
-    delay(1000);
-    digitalWrite(8, LOW);
-  }
-  }
-  diode_output(qubitState);
-  recordSuccess();
-  }
-  else{
-    recordFailure("4");
-  }
-}
-
-// ================= GATE IT =================
-void GATE_IT(String COM, int ENCODER_VAL) {
-  lcd.setCursor(0, 0);
-  lcd.print(COM);
-  SPEAKER(COM);
-  bool result;
-  result = DETECT_GATE(ENCODER_VAL);
-  if (result == true) {
-    diode_output(qubitState);
-    recordSuccess();
-  } else {
-    recordFailure("5");
-  }
-}
-
-// ================= RECORD FAILURE =================
-void recordFailure(String reason) {
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("GAME OVER");
-  lcd.setCursor(0, 1);
-  lcd.print("Score: ");
-  lcd.print(score);
-  lcd.print(reason);
-  
-  gameRunning = false;
-  while(true);
-}
-
-// ================= RECORD SUCCESS =================
-void recordSuccess() {
-  if (duration > time_unit) {
-    duration -= time_unit;
-  }
-  score++;
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("GOOD!");
-  lcd.setCursor(0, 1);
-  lcd.print("Score: ");
-  lcd.print(score);
-  delay(500);
-  score_check();
-  waitingForNext = false;
-  generate_random_command();
-}
-
-// ================= SCORE CHECK =================
-void score_check() {
-  if (score >= 99) {
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("VICTORY!");
-    lcd.setCursor(0, 1);
-    lcd.print("Score: 99");
-    lcd.setCursor(0, 2);
-    lcd.print("You won!");
-    
-    gameRunning = false;
-    while(true);
-  }
-}
-
-// ================= SPEAKER =================
-void SPEAKER(String COM) {
-  if (COM == "INITIALIZE IT!") {
-    myDFPlayer.play(7);
-  } else if (COM == "X IT!") {
-    myDFPlayer.play(10);
-  } else if (COM == "Y IT!") {
-    myDFPlayer.play(8);
-  } else if (COM == "Z IT!") {
-    myDFPlayer.play(4);
-  } else if (COM == "MEASURE IT!") {
-    myDFPlayer.play(2);
-  } 
-}
-
-// ================= GENERATE RANDOM COMMAND =================
-void generate_random_command() {
-  currentCommand = random(0, 5);
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  
-  if (currentCommand == 0) {
-    currentPhase = INITIALIZE;
-  } else if (currentCommand <= 3) {
-    currentPhase = GATE;
-    expectedGate = (currentCommand == 1) ? ROTENCX : 
-                   (currentCommand == 2) ? ROTENCY : ROTENCZ;
-  } else {
-    currentPhase = MEASURE;
-  }
-  waitingForNext = true;
-}
-
-void detect_rotation(){
-  int currentStateX = digitalRead(2);
-  int currentStateY = digitalRead(0);
-  int currentStateZ = digitalRead(7);
-  if (currentStateX == HIGH && lastStateX == LOW) {
-    x++;
-  }
-  lastStateX = currentStateX;
-  
-  if (currentStateY == HIGH && lastStateY == LOW) {
-    y++;
-  }
-  lastStateY = currentStateY;
-  
-  if (currentStateZ == HIGH && lastStateZ == LOW) {
-    z++;
-  }
-  lastStateZ = currentStateZ;
-}
-
-// ================= DETECT GATE =================
-bool DETECT_GATE(int ENCODER_VAL) {
-  wait_duration = 0;
-  int n = 0;
-  int wrong = 0;
-  int mx, my, mz;
-  do {
-    detect_rotation();
-    if (ENCODER_VAL == ROTENCX){
-      n = x;
-      if (y>z){
-        wrong = y;
-      }
-      else{
-        wrong = z;
-      }
-    }
-    else if (ENCODER_VAL == ROTENCY){
-      n = y;
-      if (x>z){
-        wrong = x;
-      }
-      else{
-        wrong = z;
-      }
-    }
-    else if (ENCODER_VAL == ROTENCZ){
-      n = z;
-      if (y>x){
-        wrong = y;
-      }
-      else{
-        wrong = x;
-      }
-    }
-    detect_mx_my_mz(mx, my, mz);
-    int sensorValue = analogRead(PHOTODIODE);    
-    if (mx == HIGH || my == HIGH || mz == HIGH || sensorValue >= 512 || wrong>5) {
-      return false;
-    }
-    
-    wait_duration += time_unit;
-    delay(time_unit);
-    DIM_LED();
-    } while (n<6 && wait_duration < duration);
-
-  if (ENCODER_VAL == ROTENCX){
-    if(x >= 5){
-    qubitState = state_transition[1][qubitState];
-    digitalWrite(8, HIGH);
-    delay(1000);
-    digitalWrite(8, LOW);
-    x = 0;
-    return true;
-  } 
-  else{
-    return false;
-  }
-  }
-  else if (ENCODER_VAL == ROTENCY){
-    if(y >= 5){
-    qubitState = state_transition[2][qubitState];
-    digitalWrite(8, HIGH);
-    delay(1000);
-    digitalWrite(8, LOW);
-    y= 0;
-    return true;
-  }
-  else{
-    return false;
-  }
-  }
-  else{
-if(z >= 5){
-    qubitState = state_transition[3][qubitState];
-    digitalWrite(8, HIGH);
-    delay(1000);
-    digitalWrite(8, LOW);
-    z = 0;
-    return true;
-  }
-  else{
-    return false;
-  }
-  }
-}
-
-int collapse_it(int qubitState){
-  coin = TCNT0 & 1;
-  if(qubitState == -1){
-    if(coin == 0){
-      return 2;
-    }
-    else{
-      return 3;
-    }
-  }
-  if(qubitState == -2){
-    if(coin == 0){
-      return 4;
-    }
-    else{
-      return 5;
-    }
-  }
-  if(qubitState == -3){
-    if(coin == 0){
-      return 1;
-    }
-    else{
-      return 0;
-    }
-  }
-  return qubitState;
-}
-
-void diode_output(int qubitState){
-  digitalWrite(3, LOW);
-  digitalWrite(9, LOW);
-  digitalWrite(1, LOW);
-  digitalWrite(6, LOW);
-  digitalWrite(10, LOW);
-  digitalWrite(11, LOW);
-  switch (qubitState){
-    case 0:
-      digitalWrite(3, HIGH);
-      break;
-    case 1:
-      digitalWrite(9, HIGH);
-      break;
-    case 2:
-      digitalWrite(1, HIGH);
-      break;
-    case 3:
-      digitalWrite(6, HIGH);
-      break;
-    case 4:
-      digitalWrite(10, HIGH);
-      break;
-    case 5:
-      digitalWrite(11, HIGH);
-      break;
-  }
-}
-
-// ================= DETECT PHOTODIODE =================
-bool DETECT_PHOTODIODE() {
-  int sensorValue = analogRead(PHOTODIODE);
-  int mx, my, mz;
-  
-  while (sensorValue < 512 && wait_duration < duration) {
-    detect_mx_my_mz(mx, my, mz);
-    /*int currentStateX = digitalRead(2);
-    int currentStateY = digitalRead(0);
-    int currentStateZ = digitalRead(7);
-      int number_of_mistakes = 0;
-      if (currentStateX == HIGH && lastStateX == LOW) {
-        number_of_mistakes++;
-        int encoder_mistake = digitalRead(values[i]);
-      }
-      lastStateX = currentStateX;
-      if (number_of_mistakes==2){
-        recordFailure("1");
-      }*/
-    
-    
-    if (mx == HIGH || my == HIGH || mz == HIGH) {
-      recordFailure("2");
-    }
-    
-    wait_duration += time_unit;
-    delay(time_unit);
-    DIM_LED();
-    sensorValue = analogRead(PHOTODIODE);
-    
-  }
-  
-  if (sensorValue >= 512){
-    initialized = true;
-    if (LED_ON) {
-      if (CURRENTSTATE == LEDpX){
-      digitalWrite(LEDpX, LOW);
-      LED_ON = false;
-    }
-    else{
-      analogWrite(CURRENTSTATE, 0);
-      LED_ON = false;}
-    }
-    CURRENTSTATE = LEDpZ;
-    analogWrite(CURRENTSTATE, 255);
-    LED_ON = true;
-    recordSuccess();
-  }
-  else{
-      recordFailure("3");
-    }
-}
-
-// ================= DETECT MX MY MZ =================
-void detect_mx_my_mz(int &mx, int &my, int &mz) {
-  mx = digitalRead(MEASUREX);
-  my = digitalRead(MEASUREY);
-  mz = digitalRead(MEASUREZ);
-}
-
-// ================= DETECT MEASURE =================
-bool DETECT_MEASURE(int &button_detected) {
-  wait_duration = 0;  // Reset wait_duration
-  int mx, my, mz;
-  
-  detect_mx_my_mz(mx, my, mz);
-  
-  while (wait_duration < duration && mx == LOW && my == LOW && mz == LOW) {
-    int sensorValue = analogRead(PHOTODIODE);
-    if (sensorValue >= 512) {
-      return false;
-    }
-    wait_duration += time_unit;
-    delay(time_unit);
-    DIM_LED();
-    
-    detect_mx_my_mz(mx, my, mz);
-    
-  }
-  if (mx == HIGH || my == HIGH || mz == HIGH){
-    
-    if (mx == HIGH) {
-      button_detected = MEASUREX;
-    } else if (my == HIGH) {
-      button_detected = MEASUREY;
-    } else {
-      button_detected = MEASUREZ;
-    }
-    return true;
-  }
-  else{
-    return false;
-}}
-
-// ================= DIM LED =================
-void DIM_LED() {
-  if (LED_ON) {
-    if (dim_value > 25) {
-      if (CURRENTSTATE != LEDpX){
-        dim_value -= 25;
-      analogWrite(CURRENTSTATE, dim_value);
-    }
-    } else { 
-    if (CURRENTSTATE != LEDpX){
-      dim_value = 0;
-      analogWrite(CURRENTSTATE, dim_value);
-      LED_ON = false;
-    }
-    else{
-      digitalWrite(CURRENTSTATE, LOW);
-      LED_ON = false;}
-    }
-  }}
-
-// ================= MAIN LOOP =================
+// ================================================================
+//  MAIN LOOP
+// ================================================================
 void loop() {
-  if (!gameRunning) return;
-  
-  switch(currentPhase) {
-    case INITIALIZE:
-      if (!initialized && !processingCommand) {
-        processingCommand = true;
-        INITIALIZE_IT();
-        processingCommand = false;
+  pollEncoders();
+
+  switch (gameState) {
+
+    case GS_IDLE: {
+      int photo = analogRead(PHOTODIODE);
+      if (photo >= 512) {
+        flashDebugLed();
+        qubitState = 0;
+        score = 0;
+        roundDuration = 10000;
+        allLedsOff();
+        showQubitLed();
+        score++;
+        gameState = GS_SUCCESS;
       }
       break;
-      
-    case GATE:
-      if (!processingCommand) {
-        processingCommand = true;
-        if (expectedGate == ROTENCX) {
-          GATE_IT("X IT!", ROTENCX);
-        } else if (expectedGate == ROTENCY) {
-          GATE_IT("Y IT!", ROTENCY);
-        } else if (expectedGate == ROTENCZ) {
-          GATE_IT("Z IT!", ROTENCZ);
+    }
+
+    case GS_COMMAND: {
+      currentCmd = pickRandomCommand();
+      lcdShowCommand(commandText(currentCmd));
+      playCommand(currentCmd);
+      resetEncoders();
+      roundStart = millis();
+      showQubitLed();
+      gameState = GS_WAIT_INPUT;
+      break;
+    }
+
+    case GS_WAIT_INPUT: {
+      if (millis() - roundStart >= roundDuration) {
+        gameState = GS_GAME_OVER;
+        break;
+      }
+      dimLed();
+      if (checkForWrongInput(currentCmd)) {
+        flashDebugLed();
+        gameState = GS_GAME_OVER;
+        break;
+      }
+      if (checkCorrectInput(currentCmd)) {
+        flashDebugLed();
+        gameState = GS_SUCCESS;
+      }
+      break;
+    }
+
+    case GS_SUCCESS: {
+      showQubitLed();
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("GOOD!");
+      lcd.setCursor(0, 1);
+      lcd.print("Score: ");
+      lcd.print(score);
+
+      if (score >= 99) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("VICTORY!");
+        lcd.setCursor(0, 1);
+        lcd.print("Final Score: 99");
+        lcd.setCursor(0, 2);
+        lcd.print("You are a quantum");
+        lcd.setCursor(0, 3);
+        lcd.print("master!");
+        gameState = GS_GAME_OVER;
+        break;
+      }
+
+      if (roundDuration > MIN_ROUND_TIME) {
+        roundDuration -= 500;
+        if (roundDuration < MIN_ROUND_TIME) {
+          roundDuration = MIN_ROUND_TIME;
         }
-        processingCommand = false;
       }
+
+      delay(400);
+      score++;
+      gameState = GS_COMMAND;
       break;
-      
-    case MEASURE:
-      if (!processingCommand) {
-        processingCommand = true;
-        MEASURE_IT();
-        processingCommand = false;
+    }
+
+    case GS_GAME_OVER: {
+      allLedsOff();
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("GAME OVER");
+      lcd.setCursor(0, 1);
+      lcd.print("Score: ");
+      lcd.print(score);
+      lcd.setCursor(0, 2);
+      lcd.print("Laser to restart");
+
+      while (true) {
+        int photo = analogRead(PHOTODIODE);
+        if (photo >= 512) {
+          flashDebugLed();
+          delay(500);
+          break;
+        }
       }
+
+      qubitState = 0;
+      score = 0;
+      roundDuration = 10000;
+      resetEncoders();
+      allLedsOff();
+      showQubitLed();
+      score++;
+      gameState = GS_SUCCESS;
       break;
-      
-    case WAITING:
-      // Do nothing, waiting for next command
-      break;
+    }
   }
 }
