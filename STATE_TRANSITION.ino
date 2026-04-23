@@ -37,7 +37,7 @@ int coin = 0;
 
 void setup() {
   pinMode(2, INPUT); //rot_encX
-  pinMode(4, INPUT); //rot_encY
+  pinMode(0, INPUT); //rot_encY
   pinMode(7, INPUT); //rot_encZ
   pinMode(8, OUTPUT);//output LED to verify rot_enc pulsing
   pinMode(A2, INPUT); //measure x button
@@ -45,12 +45,12 @@ void setup() {
   pinMode(A0, INPUT); //measure z button
   pinMode(3, OUTPUT); //|0> output
   pinMode(9, OUTPUT); //|1> output
-  pinMode(5, OUTPUT); //|+> output
+  pinMode(1, OUTPUT); //|+> output
   pinMode(6, OUTPUT); //|-> output
   pinMode(10, OUTPUT); //|i> output
   pinMode(11, OUTPUT); //|-i> output
   lastStateX = digitalRead(2);
-  lastStateY = digitalRead(4);
+  lastStateY = digitalRead(0);
   lastStateZ = digitalRead(7);
   qubitState = 0;
 }
@@ -138,7 +138,7 @@ int collapse_it(int qubitState){
 
 void detect_rotation(){
   int currentStateX = digitalRead(2);
-  int currentStateY = digitalRead(4);
+  int currentStateY = digitalRead(0);
   int currentStateZ = digitalRead(7);
   if (currentStateX == HIGH && lastStateX == LOW) {
     x++;
@@ -192,7 +192,7 @@ void detect_Zgate(){
 void diode_output(int qubitState){
   digitalWrite(3, LOW);
   digitalWrite(9, LOW);
-  digitalWrite(5, LOW);
+  digitalWrite(1, LOW);
   digitalWrite(6, LOW);
   digitalWrite(10, LOW);
   digitalWrite(11, LOW);
@@ -204,7 +204,7 @@ void diode_output(int qubitState){
       digitalWrite(9, HIGH);
       break;
     case 2:
-      digitalWrite(5, HIGH);
+      digitalWrite(1, HIGH);
       break;
     case 3:
       digitalWrite(6, HIGH);
@@ -217,4 +217,3 @@ void diode_output(int qubitState){
       break;
   }
 }
-
