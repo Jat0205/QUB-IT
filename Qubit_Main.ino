@@ -40,7 +40,7 @@ int x, y, z = 0;
 
 // ================= PINS ===================
 const int ROTENCX = 2;
-const int ROTENCY = 4;
+const int ROTENCY = 0;
 const int ROTENCZ = 7;
 const int DEBUGLED = 8;
 const int PHOTODIODE = A3;
@@ -49,7 +49,7 @@ const int MEASUREY = A1;
 const int MEASUREZ = A0;
 const int LEDpZ = 3;
 const int LEDmZ = 9;
-const int LEDpX = 5;
+const int LEDpX = 1;
 const int LEDmX = 6;
 const int LEDpY = 10;
 const int LEDmY = 11;
@@ -76,8 +76,7 @@ void setup() {
   FPSerial.begin(9600);
 #endif
 
-  Serial.begin(115200);
-  
+ 
   if (!myDFPlayer.begin(FPSerial, /*isACK = */true, /*doReset = */true)) {  //Use serial to communicate with mp3.
     
     while(true);
@@ -92,19 +91,19 @@ void setup() {
   myDFPlayer.outputDevice(DFPLAYER_DEVICE_SD);
 
   // Setting Pins
-  pinMode(ROTENCX, INPUT);
-  pinMode(ROTENCY, INPUT);
-  pinMode(ROTENCZ, INPUT);
-  pinMode(DEBUGLED, OUTPUT);
-  pinMode(MEASUREX, INPUT);
-  pinMode(MEASUREY, INPUT);
-  pinMode(MEASUREZ, INPUT);
-  pinMode(LEDpZ, OUTPUT);
-  pinMode(LEDmZ, OUTPUT);
-  pinMode(LEDpX, OUTPUT);
-  pinMode(LEDmX, OUTPUT);
-  pinMode(LEDpY, OUTPUT);
-  pinMode(LEDmY, OUTPUT);
+  pinMode(ROTENCX, INPUT); //ROTENCX
+  pinMode(ROTENCY, INPUT); //ROTENCY
+  pinMode(ROTENCZ, INPUT); //ROTENCZ
+  pinMode(DEBUGLED, OUTPUT); //DEBUG LED
+  pinMode(MEASUREX, INPUT); //MEASURE X BUTTON
+  pinMode(MEASUREY, INPUT); //MEASURE Y BUTTON
+  pinMode(MEASUREZ, INPUT); //MEASURE Z BUTTON
+  pinMode(LEDpZ, OUTPUT); // |0>
+  pinMode(LEDmZ, OUTPUT); // |1>
+  pinMode(LEDpX, OUTPUT); // |+>
+  pinMode(LEDmX, OUTPUT); // |->
+  pinMode(LEDpY, OUTPUT); // |i>
+  pinMode(LEDmY, OUTPUT); // |-i>
 
   lastStateX = digitalRead(ROTENCX);
   lastStateY = digitalRead(ROTENCY);
