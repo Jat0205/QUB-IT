@@ -193,6 +193,7 @@ void MEASURE_IT() {
     digitalWrite(8, LOW);
   }
   }
+  diode_output(qubitState);
   recordSuccess();
   }
   else{
@@ -205,9 +206,10 @@ void GATE_IT(String COM, int ENCODER_VAL) {
   lcd.setCursor(0, 0);
   lcd.print(COM);
   SPEAKER(COM);
-  
-  if (DETECT_GATE(ENCODER_VAL)) {
-    switch_selection(ENCODER_VAL);
+  bool result;
+  result = DETECT_GATE(ENCODER_VAL);
+  if (result == true) {
+    diode_output(qubitState);
     recordSuccess();
   } else {
     recordFailure("5");
@@ -317,37 +319,84 @@ void detect_rotation(){
 
 // ================= DETECT GATE =================
 bool DETECT_GATE(int ENCODER_VAL) {
+  wait_duration = 0;
+  int n = 0;
+  int wrong = 0;
+  int mx, my, mz;
+  do {
+    detect_rotation();
+    if (ENCODER_VAL == ROTENCX){
+      n = x;
+      if (y>z){
+        wrong = y;
+      }
+      else{
+        wrong = z;
+      }
+    }
+    else if (ENCODER_VAL == ROTENCY){
+      n = y;
+      if (x>z){
+        wrong = x;
+      }
+      else{
+        wrong = z;
+      }
+    }
+    else if (ENCODER_VAL == ROTENCZ){
+      n = z;
+      if (y>x){
+        wrong = y;
+      }
+      else{
+        wrong = x;
+      }
+    }
+    detect_mx_my_mz(mx, my, mz);
+    int sensorValue = analogRead(PHOTODIODE);    
+    if (mx == HIGH || my == HIGH || mz == HIGH || sensorValue >= 512 || wrong>5) {
+      return false;
+    }
+    
+    wait_duration += time_unit;
+    delay(time_unit);
+    DIM_LED();
+    } while (n<6 && wait_duration < duration);
+
   if (ENCODER_VAL == ROTENCX){
-    if(x == 5){
+    if(x >= 5){
     qubitState = state_transition[1][qubitState];
     digitalWrite(8, HIGH);
     delay(1000);
     digitalWrite(8, LOW);
     x = 0;
+    return true;
   } 
   else{
     return false;
   }
   }
   else if (ENCODER_VAL == ROTENCY){
-    if(y == 5){
+    if(y >= 5){
     qubitState = state_transition[2][qubitState];
     digitalWrite(8, HIGH);
     delay(1000);
     digitalWrite(8, LOW);
     y= 0;
+    return true;
   }
   else{
     return false;
   }
   }
   else{
-if(z == 5){
+if(z >= 5){
     qubitState = state_transition[3][qubitState];
     digitalWrite(8, HIGH);
     delay(1000);
     digitalWrite(8, LOW);
     z = 0;
+    return true;
   }
   else{
     return false;
@@ -526,137 +575,6 @@ void DIM_LED() {
       LED_ON = false;}
     }
   }}
-
-// ================= MEASURE SELECTION =================
-void measure_selection(int button_detected) {
-  if (LED_ON) {
-    if (CURRENTSTATE != LEDpX){
-      dim_value = 0;
-      analogWrite(CURRENTSTATE, dim_value);
-      LED_ON = false;
-    }
-    else{
-      digitalWrite(CURRENTSTATE, LOW);
-      LED_ON = false;}
-
-  }
-  
-  int current_switch[2];
-  if (button_detected == MEASUREZ) {
-    current_switch[0] = LEDpZ;
-    current_switch[1] = LEDmZ;
-  } else if (button_detected == MEASUREX) {
-    current_switch[0] = LEDpX;
-    current_switch[1] = LEDmX;
-  } else if (button_detected == MEASUREY) {
-    current_switch[0] = LEDpY;
-    current_switch[1] = LEDmY;
-  } else {
-    return;
-  }
-  
-  bool stateInSwitch = (CURRENTSTATE == current_switch[0] || CURRENTSTATE == current_switch[1]);
-  
-  if (!stateInSwitch) {
-    int number = random(0, 2);
-    if (number == 0) {
-      CURRENTSTATE = current_switch[0];
-    } else {
-      CURRENTSTATE = current_switch[1];
-    }
-  }
-  
-  // Turn the new LED on
-  if (CURRENTSTATE != LEDpX){
-      dim_value = 255;
-      analogWrite(CURRENTSTATE, dim_value);
-      LED_ON = true;
-    }
-    else{
-      digitalWrite(CURRENTSTATE, HIGH);
-      LED_ON = true;}
-  
-  LED_ON = true;
-}
-
-// ================= SWITCH SELECTION =================
-void switch_selection(int ENCODER_VAL) {
-  if (LED_ON) {
-    digitalWrite(CURRENTSTATE, 0);
-    LED_ON = false;
-  }
-  
-  int target_basis[2];
-  if (ENCODER_VAL == ROTENCZ) {
-    target_basis[0] = LEDpZ;
-    target_basis[1] = LEDmZ;
-  } else if (ENCODER_VAL == ROTENCX) {
-    target_basis[0] = LEDpX;
-    target_basis[1] = LEDmX;
-  } else if (ENCODER_VAL == ROTENCY) {
-    target_basis[0] = LEDpY;
-    target_basis[1] = LEDmY;
-  } else {
-    return;
-  }
-  
-  bool alreadyInBasis = (CURRENTSTATE == target_basis[0] || CURRENTSTATE == target_basis[1]);
-  
-  if (alreadyInBasis) {
-    if (ENCODER_VAL == ROTENCZ) {
-      if (CURRENTSTATE == LEDpZ) {
-        CURRENTSTATE = LEDmZ;
-      } else if (CURRENTSTATE == LEDmZ) {
-        CURRENTSTATE = LEDpZ;
-      }
-    } else if (ENCODER_VAL == ROTENCX) {
-      if (CURRENTSTATE == LEDpX) {
-        CURRENTSTATE = LEDmX;
-      } else if (CURRENTSTATE == LEDmX) {
-        CURRENTSTATE = LEDpX;
-      }
-    } else if (ENCODER_VAL == ROTENCY) {
-      if (CURRENTSTATE == LEDpY) {
-        CURRENTSTATE = LEDmY;
-      } else if (CURRENTSTATE == LEDmY) {
-        CURRENTSTATE = LEDpY;
-      }
-    }
-  } else {
-    if (ENCODER_VAL == ROTENCX) {
-      int random_choice = random(0, 2);
-      if (random_choice == 0) {
-        CURRENTSTATE = LEDpX;
-      } else {
-        CURRENTSTATE = LEDmX;
-      }
-    } else if (ENCODER_VAL == ROTENCY) {
-      int random_choice = random(0, 2);
-      if (random_choice == 0) {
-        CURRENTSTATE = LEDpY;
-      } else {
-        CURRENTSTATE = LEDmY;
-      }
-    } else if (ENCODER_VAL == ROTENCZ) {
-      int random_choice = random(0, 2);
-      if (random_choice == 0) {
-        CURRENTSTATE = LEDpZ;
-      } else {
-        CURRENTSTATE = LEDmZ;
-      }
-    }
-  }
-  
-  if (CURRENTSTATE != LEDpX){
-      dim_value = 255;
-      analogWrite(CURRENTSTATE, dim_value);
-
-    }
-    else{
-      digitalWrite(CURRENTSTATE, HIGH);
-}
-  LED_ON = true;
-}
 
 // ================= MAIN LOOP =================
 void loop() {
