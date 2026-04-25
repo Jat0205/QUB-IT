@@ -9,15 +9,15 @@ atmega328p <br><br>
 **Programming Language:** <br>
 C++<br><br>
 **Pinout:** <br>
-DO 0:AUDIO <br>
-DO 1: AUDIO <br>
+DO 0:Y ROT ENC <br>
+DO 1: LED |+>  <br>
 DO 2: X ROT ENC <br>
 DO 3: LED |0> <br>
-DO 4: Y ROT ENC <br>
-DO 5: LED |+> <br>
+DO 4: AUDIO <br>
+DO 5: AUDIO <br>
 DO 6: LED |-> <br>
 DO 7: Z ROT ENC <br>
-DO 8:  <br>
+DO 8: DEBUG LED <br>
 DO 9: LED |1> <br>
 DO 10: LED |i> <br>
 DO 11: LED |-i> <br>
