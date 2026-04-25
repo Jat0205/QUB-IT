@@ -45,3 +45,12 @@ A5: LCD <br><br>
 - Enjoy Qub-it!<br>
 
 Please note: there are multiple ino files to test individual functions and debug your PCB, such as LCD.ino, MEASURE_IT.ino, ROT_ENC.ino, STATE_TRANSITION.ino, audio_test.ino, and photodiode.ino. Each file tests an individual function.<br> 
+The file named "finding_out_audio_names.ino" displays the file name recognized on the DF player on the LCD so you can go to the Qubit_Main.ino and edit this part with the corresponding numbers:<br>
+// ================= DFPlayer TRACK MAP =================<br>
+const int TRACK_INIT    = 7;<br>
+const int TRACK_X       = 10;<br>
+const int TRACK_Y       = 8;<br>
+const int TRACK_Z       = 4;<br>
+const int TRACK_MEASURE = 2;<br>
+const int TRACK_STARTUP = 1;<br>
+
