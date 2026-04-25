@@ -44,4 +44,4 @@ A5: LCD <br><br>
 - Connect a 9 V battery and use the switch to turn on the toy. (the reset button can also be used to reset the game). <br>
 - Enjoy Qub-it!<br>
 
-Please note: there are multiple ino files to test individual functions and debug your PCB, such as LCD.ino, MEASURE_IT.ino, ROT_ENC.ino, STATE_TRANSITION.ino, audio.ino, and photodiode.ino. Each file tests an individual function.<br>
+Please note: there are multiple ino files to test individual functions and debug your PCB, such as LCD.ino, MEASURE_IT.ino, ROT_ENC.ino, STATE_TRANSITION.ino, audio_test.ino, and photodiode.ino. Each file tests an individual function.<br> 
