@@ -1,0 +1,15 @@
+Please order the following: <br>
+- Thorlabs FDS100: https://www.thorlabs.com/item/FDS100<br>
+- USBtinyISP Programmer: https://everymarket.com/products/usbtiny-usbtinyisp-avr-usb-tiny-isp-programmer-bootloader-with-programming-cable <br>
+- Micro SD card<br>
+- Speaker<br>
+- LCD<br>
+- 9V battery<br>
+- Switch <br>
+- 4 buttons<br>
+- LASER pointer<br>
+- 7 LEDs<br>
+- ATMEGA<br>
+- 28 Pin dip socket<br>
+- DF PLAYER<br>
+- LIST FROM DIGIKEY (just upload the spreadsheet)<br>
