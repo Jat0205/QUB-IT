@@ -33,7 +33,7 @@ A5: LCD <br><br>
 ** Steps to reproduce our work:<br>
 - Refer to the provided schematic to reproduce the work and test it on a breadboard first.<br>
 - Order the PCB included through JLCPCB (we used their design rule check.<br>
-- Order parts needed from digikey (BOM is provided).<br>
+- Order parts needed from digikey, amazon, thorlabs, and JBsuperstore (BOM is provided).<br>
 - Solder PCB.<br>
 - 3D print sphere, sphere stand, and remote enclosure (stl files included).<br>
 - place the LEDs and photodiode in the sphere such as the LEDs on the same axis correspond to the same basis.<br>
